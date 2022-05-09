@@ -226,6 +226,11 @@ function bind_clib()
     return handle_error(rc)
   end
 
+  function funcs.append(db, key, value)
+    local rc = clib.vedis_kv_append(db, key, #key, value, #value)
+    return handle_error(rc)
+  end
+
   ffi.cdef [[
     int vedis_exec(vedis *pStore,const char *zCmd,int nLen);
     int vedis_exec_result(vedis *pStore,vedis_value **ppOut);
@@ -244,7 +249,7 @@ function bind_clib()
 
   function funcs.exec_result(db)
     local p_value = ffi_new "vedis_value*[1]"
-    local rc = clib.vedis_exec_result(self.db, p_value)
+    local rc = clib.vedis_exec_result(db, p_value)
     if rc ~= consts.VEDIS_OK then
       return handle_error(rc)
     end
@@ -270,6 +275,21 @@ function bind_clib()
   function funcs.rollback(db)
     local rc = clib.vedis_rollback(db)
     return handle_error(rc)
+  end
+
+  ffi.cdef [[
+    int vedis_util_random_string(vedis *pStore,char *zBuf,unsigned int buf_size);
+    unsigned int vedis_util_random_num(vedis *pStore);
+  ]]
+
+  function funcs.random_string(db, len)
+    local buf = ffi_new("char[?]", len + 1)
+    clib.vedis_util_random_string(db, buf, len)
+    return ffi_str(buf, len)
+  end
+
+  function funcs.random_num(db)
+    return clib.vedis_util_random_num(db)
   end
 
   ffi.cdef [[
@@ -334,6 +354,14 @@ function bind_clib()
     return clib.vedis_value_is_null(value) == 1
   end
 
+  function funcs.value_is_numeric(value)
+    return clib.vedis_value_is_numeric(value) == 1
+  end
+
+  function funcs.value_is_scalar(value)
+    return clib.vedis_value_is_scalar(value) == 1
+  end
+
   function funcs.value_is_array(value)
     return clib.vedis_value_is_array(value) == 1
   end
@@ -364,12 +392,25 @@ function bind_clib()
   --  Metatables
   -----------------------------------------------------------
   vedis_mt.close = funcs.close
+  vedis_mt.get = funcs.get
+  vedis_mt.set = funcs.set
+  vedis_mt.append = funcs.append
+  vedis_mt.delete = funcs.delete
+
   vedis_mt.exec = funcs.exec
   vedis_mt.execute = funcs.execute
   vedis_mt.exec_result = funcs.exec_result
+
   vedis_mt.begin = funcs.begin
   vedis_mt.commit = funcs.commit
   vedis_mt.rollback = funcs.rollback
+
+  vedis_mt.random_string = funcs.random_string
+  vedis_mt.random_num = funcs.random_num
+
+  vedis_mt.__gc = function(self)
+    funcs.close(self)
+  end
 
   vedis_value_mt.to_int = funcs.value_to_int
   vedis_value_mt.to_bool = funcs.value_to_bool
@@ -382,6 +423,8 @@ function bind_clib()
   vedis_value_mt.is_bool = funcs.value_is_bool
   vedis_value_mt.is_string = funcs.value_is_string
   vedis_value_mt.is_null = funcs.value_is_null
+  vedis_value_mt.is_numeric = funcs.value_is_numeric
+  vedis_value_mt.is_scalar = funcs.value_is_scalar
   vedis_value_mt.is_array = funcs.value_is_array
 
   vedis_value_mt.array_reset = funcs.array_reset
