@@ -226,15 +226,173 @@ function bind_clib()
     return handle_error(rc)
   end
 
+  ffi.cdef [[
+    int vedis_exec(vedis *pStore,const char *zCmd,int nLen);
+    int vedis_exec_result(vedis *pStore,vedis_value **ppOut);
+  ]]
+
+  function funcs.exec(db, cmd)
+    local rc = clib.vedis_exec(db, cmd, #cmd)
+    return handle_error(rc)
+  end
+
+  function funcs.execute(db, fmt, ...)
+    local cmd = str_fmt(fmt, ...)
+    local rc = clib.vedis_exec(db, cmd, #cmd)
+    return handle_error(rc)
+  end
+
+  function funcs.exec_result(db)
+    local p_value = ffi_new "vedis_value*[1]"
+    local rc = clib.vedis_exec_result(self.db, p_value)
+    if rc ~= consts.VEDIS_OK then
+      return handle_error(rc)
+    end
+    return p_value[0]
+  end
+
+  ffi.cdef [[
+    int vedis_begin(vedis *pStore);
+    int vedis_commit(vedis *pStore);
+    int vedis_rollback(vedis *pStore);
+  ]]
+
+  function funcs.begin(db)
+    local rc = clib.vedis_begin(db)
+    return handle_error(rc)
+  end
+
+  function funcs.commit(db)
+    local rc = clib.vedis_commit(db)
+    return handle_error(rc)
+  end
+
+  function funcs.rollback(db)
+    local rc = clib.vedis_rollback(db)
+    return handle_error(rc)
+  end
+
+  ffi.cdef [[
+    int vedis_value_to_int(vedis_value *pValue);
+    int vedis_value_to_bool(vedis_value *pValue);
+    int64_t vedis_value_to_int64(vedis_value *pValue);
+    double vedis_value_to_double(vedis_value *pValue);
+    const char * vedis_value_to_string(vedis_value *pValue,int *pLen);
+  ]]
+
+  function funcs.value_to_int(value)
+    return clib.vedis_value_to_int(value)
+  end
+
+  function funcs.value_to_bool(value)
+    return aux.wrap_bool(clib.vedis_value_to_bool(value))
+  end
+
+  function funcs.value_to_int64(value)
+    return clib.vedis_value_to_int64(value)
+  end
+
+  function funcs.value_to_double(value)
+    return clib.vedis_value_to_double(value)
+  end
+
+  function funcs.value_to_string(value)
+    local p_len = ffi_new "int[1]"
+    p_len[0] = 0
+    local s = clib.vedis_value_to_string(value, p_len)
+    return ffi_str(s, p_len[0])
+  end
+
+  ffi.cdef [[
+    int vedis_value_is_int(vedis_value *pVal);
+    int vedis_value_is_float(vedis_value *pVal);
+    int vedis_value_is_bool(vedis_value *pVal);
+    int vedis_value_is_string(vedis_value *pVal);
+    int vedis_value_is_null(vedis_value *pVal);
+    int vedis_value_is_numeric(vedis_value *pVal);
+    int vedis_value_is_scalar(vedis_value *pVal);
+    int vedis_value_is_array(vedis_value *pVal);
+  ]]
+
+  function funcs.value_is_int(value)
+    return clib.vedis_value_is_int(value) == 1
+  end
+
+  function funcs.value_is_float(value)
+    return clib.vedis_value_is_float(value) == 1
+  end
+
+  function funcs.value_is_bool(value)
+    return clib.vedis_value_is_bool(value) == 1
+  end
+
+  function funcs.value_is_string(value)
+    return clib.vedis_value_is_string(value) == 1
+  end
+
+  function funcs.value_is_null(value)
+    return clib.vedis_value_is_null(value) == 1
+  end
+
+  function funcs.value_is_array(value)
+    return clib.vedis_value_is_array(value) == 1
+  end
+
+  ffi.cdef [[
+    int vedis_array_reset(vedis_value *pArray);
+    vedis_value * vedis_array_next_elem(vedis_value *pArray);
+    unsigned int vedis_array_count(vedis_value *pArray);
+  ]]
+
+  function funcs.array_reset(value)
+    return clib.vedis_array_reset(value)
+  end
+
+  function funcs.array_next_elem(value)
+    return clib.vedis_array_next_elem(value)
+  end
+
+  function funcs.array_count(value)
+    return clib.vedis_array_count(value)
+  end
+
   -----------------------------------------------------------
   --  Extended Functions
   -----------------------------------------------------------
+
+  -----------------------------------------------------------
+  --  Metatables
+  -----------------------------------------------------------
   vedis_mt.close = funcs.close
+  vedis_mt.exec = funcs.exec
+  vedis_mt.execute = funcs.execute
+  vedis_mt.exec_result = funcs.exec_result
+  vedis_mt.begin = funcs.begin
+  vedis_mt.commit = funcs.commit
+  vedis_mt.rollback = funcs.rollback
+
+  vedis_value_mt.to_int = funcs.value_to_int
+  vedis_value_mt.to_bool = funcs.value_to_bool
+  vedis_value_mt.to_int64 = funcs.value_to_int64
+  vedis_value_mt.to_double = funcs.value_to_double
+  vedis_value_mt.to_string = funcs.value_to_string
+
+  vedis_value_mt.is_int = funcs.value_is_int
+  vedis_value_mt.is_float = funcs.value_is_float
+  vedis_value_mt.is_bool = funcs.value_is_bool
+  vedis_value_mt.is_string = funcs.value_is_string
+  vedis_value_mt.is_null = funcs.value_is_null
+  vedis_value_mt.is_array = funcs.value_is_array
+
+  vedis_value_mt.array_reset = funcs.array_reset
+  vedis_value_mt.array_next_elem = funcs.array_next_elem
+  vedis_value_mt.array_count = funcs.array_count
 
   -----------------------------------------------------------
   --  Finalize types metatables
   -----------------------------------------------------------
   ffi.metatype("vedis", vedis_mt)
+  ffi.metatype("vedis_value", vedis_value_mt)
 end
 
 -----------------------------------------------------------
